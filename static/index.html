@@ -1,0 +1,438 @@
+<!--
+style.css and blue-bar.css: the shared 5G-MAG reference tools look and feel
+(design tokens, light/dark theming), reused as-is rather than reinvented.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Network Emulator Dashboard</title>
+<link rel="shortcut icon" type="image/png" href="/static/images/favicon.png">
+<script>
+  try {
+    if (localStorage.getItem('netemu-control-theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="/static/blue-bar.css"/>
+<link rel="stylesheet" href="/static/style.css"/>
+<style>
+  /* netemu-control specific, on top of the shared design tokens */
+  #profileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.8rem; margin-bottom: 1rem; }
+  .profile-card {
+    cursor: pointer;
+    position: relative;
+    border: 2px solid var(--border);
+    transition: border-color 0.12s ease, background-color 0.12s ease, transform 0.06s ease;
+  }
+  .profile-card:hover { border-color: var(--accent); background: var(--surface-2); }
+  .profile-card:active { transform: scale(0.98); }
+  .profile-card .card-title { cursor: default; }
+  .profile-card.active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  }
+  .profile-card.active::before {
+    content: "\2713 Active";
+    position: absolute; top: 0.6rem; right: 0.7rem;
+    font-size: 0.72rem; font-weight: 700; color: var(--accent);
+  }
+  .profile-card .profile-actions {
+    position: absolute; top: 0.55rem; right: 0.6rem; display: flex; gap: 4px;
+  }
+  .profile-card.active .profile-actions { top: 1.6rem; }
+  .profile-card .profile-actions button {
+    border: none; background: var(--surface-2); color: var(--text-3); cursor: pointer;
+    border-radius: 5px; font-size: 0.78rem; padding: 2px 6px; line-height: 1.4;
+  }
+  .profile-card .profile-actions button:hover { color: var(--text); background: var(--border); }
+  .profile-desc { font-size: 0.85rem; color: var(--text-2); margin-bottom: 0.4rem; padding-right: 3.2rem; }
+  .profile-stats { font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace; font-size: 0.78rem; color: var(--text-3); }
+  .profile-card.new-profile-card {
+    display: flex; align-items: center; justify-content: center; min-height: 96px;
+    border-style: dashed; color: var(--text-3); font-size: 0.9rem;
+  }
+  .profile-card.new-profile-card:hover { color: var(--accent); }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.2rem; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-box .form-row { margin-bottom: 0.7rem; }
+  .modal-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  .pattern-chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 14px; padding: 4px 10px; font-size: 0.8rem;
+  }
+  .pattern-chip button { border: none; background: none; color: var(--text-3); cursor: pointer; font-size: 0.9rem; padding: 0; }
+  #patternList { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; margin: 0.6rem 0; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 0.7rem; margin-bottom: 0.8rem; }
+  .stat-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; }
+  .stat-tile .label { font-size: 0.72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .stat-tile .val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="blue-bar">
+  <div class="blue-bar-logo"><img src="/static/images/5gmag.png" alt="5G-MAG logo"></div>
+  <div class="blue-bar-title">Network Emulator Dashboard</div>
+  <div class="blue-bar-actions">
+    <button id="theme-toggle" class="blue-bar-btn" type="button" aria-pressed="false">&#9790;&nbsp;Dark mode</button>
+  </div>
+</header>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<main class="main" style="max-width: 1100px;">
+
+  <div class="card">
+    <div class="card-title">Interface &amp; status</div>
+    <div class="toolbar" style="justify-content: flex-start; align-items: flex-end;">
+      <div class="form-row" style="margin-bottom:0;">
+        <label class="form-label">Interface</label>
+        <input type="text" id="interfaceInput" placeholder="e.g. eno1" style="max-width:140px;">
+      </div>
+      <button id="setIfaceBtn" class="btn btn-ghost btn-sm" type="button">Set interface</button>
+      <span class="form-hint" style="margin-left:auto;">Current profile: <strong id="currentProfileLabel">none</strong></span>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="label">Interface</div><div class="val" id="ifaceLabel">&mdash;</div></div>
+      <div class="stat-tile"><div class="label">Egress</div><div class="val" id="egressStat">&mdash;</div></div>
+      <div class="stat-tile"><div class="label">Ingress</div><div class="val" id="ingressStat">&mdash;</div></div>
+      <div class="stat-tile"><div class="label">Pattern</div><div class="val" id="patternStat">&mdash;</div></div>
+      <div class="stat-tile"><div class="label">Sudo</div><div class="val" id="sudoStat"><span class="badge badge-neutral" id="sudoBadge">&hellip;</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Impairment profiles</div>
+    <div class="form-hint" style="margin-bottom:0.6rem;">Click a card to apply it. Built-in profiles ship with the tool; custom ones are yours to edit or delete.</div>
+    <div id="profileGrid"></div>
+    <div class="toolbar" style="justify-content: flex-start;">
+      <button class="btn btn-danger btn-sm" onclick="clearImpairment()">Clear impairments</button>
+    </div>
+  </div>
+
+  <div id="profileModalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="card-title" id="profileModalTitle">New profile</div>
+      <input type="hidden" id="pfEditingOriginalName">
+      <div class="form-row">
+        <label class="form-label">Name</label>
+        <input type="text" id="pfName" placeholder="e.g. flaky-wifi">
+        <div class="form-hint">lowercase letters, numbers, - or _</div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Description</label>
+        <input type="text" id="pfDescription" placeholder="What does this simulate?">
+      </div>
+      <div class="modal-grid-2">
+        <div class="form-row">
+          <label class="form-label">Delay (ms)</label>
+          <input type="number" id="pfDelay" value="0" min="0">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Jitter (ms)</label>
+          <input type="number" id="pfJitter" value="0" min="0">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Loss (%)</label>
+          <input type="number" id="pfLoss" value="0" min="0" max="100" step="0.1">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Rate cap (Mbit, blank=unlimited)</label>
+          <input type="number" id="pfRate" min="0" step="0.01" placeholder="unlimited">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Corruption (%)</label>
+          <input type="number" id="pfCorruption" value="0" min="0" max="100" step="0.1">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Reorder (%)</label>
+          <input type="number" id="pfReorder" value="0" min="0" max="100" step="0.1">
+        </div>
+      </div>
+      <div class="toolbar" style="justify-content: flex-end; margin-top: 0.6rem;">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="closeProfileModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" type="button" onclick="saveProfile()">Save profile</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Automated pattern</div>
+    <div class="toolbar" style="justify-content: flex-start; align-items: flex-end;">
+      <div class="form-row" style="margin-bottom:0;">
+        <label class="form-label">Add profile</label>
+        <select id="patternProfileSelect" style="max-width:180px;"></select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="addToPattern()">Add step</button>
+      <div class="form-row" style="margin-bottom:0;">
+        <label class="form-label">Interval (s)</label>
+        <input type="number" id="intervalInput" value="30" min="1">
+      </div>
+      <label class="form-hint" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="loopInput" checked style="width:auto;"> Loop
+      </label>
+    </div>
+    <div id="patternList"></div>
+    <div class="toolbar" style="justify-content: flex-start;">
+      <button class="btn btn-primary btn-sm" onclick="startPattern()">Start pattern</button>
+      <button class="btn btn-ghost btn-sm" onclick="stopPattern()">Stop pattern</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Raw status</div>
+    <pre id="statusJson">loading&hellip;</pre>
+  </div>
+
+</main>
+
+<script>
+let profiles = [];
+let patternSteps = [];
+let currentProfile = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    window.showToast(`Error ${res.status}: ${text}`, 'error');
+    throw new Error(text);
+  }
+  return res.json();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadProfiles() {
+  profiles = await api('/api/profiles');
+  const grid = document.getElementById('profileGrid');
+  grid.innerHTML = '';
+  const select = document.getElementById('patternProfileSelect');
+  select.innerHTML = '';
+  for (const p of profiles) {
+    const card = document.createElement('div');
+    card.className = 'card profile-card';
+    card.id = `card-${p.name}`;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-pressed', 'false');
+    card.onclick = (e) => { if (!e.target.closest('.profile-actions')) applyProfile(p.name); };
+    card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applyProfile(p.name); } };
+    const actions = p.is_custom
+      ? `<div class="profile-actions">
+           <button type="button" title="Edit" onclick="event.stopPropagation(); openEditProfile('${p.name}')">&#9998;</button>
+           <button type="button" title="Delete" onclick="event.stopPropagation(); deleteProfile('${p.name}')">&times;</button>
+         </div>`
+      : '';
+    card.innerHTML = `
+      ${actions}
+      <div class="card-title">${escapeHtml(p.name)}</div>
+      <div class="profile-desc">${escapeHtml(p.description)}</div>
+      <div class="profile-stats">delay=${p.delay_ms}ms jitter=${p.jitter_ms}ms loss=${p.loss_pct}% rate=${p.rate_mbit ?? 'unlimited'}Mbit</div>
+    `;
+    grid.appendChild(card);
+    const opt = document.createElement('option');
+    opt.value = p.name; opt.textContent = p.name;
+    select.appendChild(opt);
+  }
+  const addCard = document.createElement('div');
+  addCard.className = 'card profile-card new-profile-card';
+  addCard.tabIndex = 0;
+  addCard.setAttribute('role', 'button');
+  addCard.textContent = '+ New profile';
+  addCard.onclick = () => openNewProfile();
+  addCard.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNewProfile(); } };
+  grid.appendChild(addCard);
+}
+
+function openNewProfile() {
+  document.getElementById('profileModalTitle').textContent = 'New profile';
+  document.getElementById('pfEditingOriginalName').value = '';
+  document.getElementById('pfName').value = '';
+  document.getElementById('pfName').disabled = false;
+  document.getElementById('pfDescription').value = '';
+  document.getElementById('pfDelay').value = 0;
+  document.getElementById('pfJitter').value = 0;
+  document.getElementById('pfLoss').value = 0;
+  document.getElementById('pfRate').value = '';
+  document.getElementById('pfCorruption').value = 0;
+  document.getElementById('pfReorder').value = 0;
+  document.getElementById('profileModalBackdrop').hidden = false;
+}
+
+function openEditProfile(name) {
+  const p = profiles.find(x => x.name === name);
+  if (!p) return;
+  document.getElementById('profileModalTitle').textContent = `Edit profile: ${name}`;
+  document.getElementById('pfEditingOriginalName').value = name;
+  document.getElementById('pfName').value = p.name;
+  document.getElementById('pfName').disabled = true;
+  document.getElementById('pfDescription').value = p.description || '';
+  document.getElementById('pfDelay').value = p.delay_ms;
+  document.getElementById('pfJitter').value = p.jitter_ms;
+  document.getElementById('pfLoss').value = p.loss_pct;
+  document.getElementById('pfRate').value = p.rate_mbit ?? '';
+  document.getElementById('pfCorruption').value = p.corruption_pct ?? 0;
+  document.getElementById('pfReorder').value = p.reorder_pct ?? 0;
+  document.getElementById('profileModalBackdrop').hidden = false;
+}
+
+function closeProfileModal() {
+  document.getElementById('profileModalBackdrop').hidden = true;
+}
+
+async function saveProfile() {
+  const name = document.getElementById('pfName').value.trim().toLowerCase();
+  if (!name) { window.showToast('Name is required', 'error'); return; }
+  const rateVal = document.getElementById('pfRate').value;
+  const body = {
+    name,
+    description: document.getElementById('pfDescription').value.trim(),
+    delay_ms: parseInt(document.getElementById('pfDelay').value, 10) || 0,
+    jitter_ms: parseInt(document.getElementById('pfJitter').value, 10) || 0,
+    loss_pct: parseFloat(document.getElementById('pfLoss').value) || 0,
+    rate_mbit: rateVal === '' ? null : parseFloat(rateVal),
+    corruption_pct: parseFloat(document.getElementById('pfCorruption').value) || 0,
+    reorder_pct: parseFloat(document.getElementById('pfReorder').value) || 0,
+  };
+  await api('/api/profiles', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  window.showToast(`Profile '${name}' saved`, 'success');
+  closeProfileModal();
+  await loadProfiles();
+  await refreshStatus();
+}
+
+async function deleteProfile(name) {
+  if (!confirm(`Delete custom profile '${name}'?`)) return;
+  await api(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
+  window.showToast(`Profile '${name}' deleted`);
+  await loadProfiles();
+  await refreshStatus();
+}
+
+function highlightActive() {
+  document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('active'));
+  if (currentProfile) document.getElementById(`card-${currentProfile}`)?.classList.add('active');
+  document.getElementById('currentProfileLabel').textContent = currentProfile || 'none';
+}
+
+async function applyProfile(name) {
+  await api('/api/apply', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({profile: name})});
+  window.showToast(`Applied profile: ${name}`, 'success');
+  await refreshStatus();
+}
+
+async function clearImpairment() {
+  await api('/api/clear', {method: 'POST'});
+  window.showToast('Impairments cleared');
+  await refreshStatus();
+}
+
+document.getElementById('setIfaceBtn').addEventListener('click', async () => {
+  const iface = document.getElementById('interfaceInput').value.trim();
+  if (!iface) return;
+  await api('/api/interface', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({interface: iface})});
+  window.showToast(`Interface set to ${iface}`);
+  await refreshStatus();
+});
+
+function addToPattern() {
+  const name = document.getElementById('patternProfileSelect').value;
+  if (!name) return;
+  patternSteps.push(name);
+  renderPatternList();
+}
+function removeFromPattern(idx) { patternSteps.splice(idx, 1); renderPatternList(); }
+window.removeFromPattern = removeFromPattern;
+
+function renderPatternList() {
+  const list = document.getElementById('patternList');
+  list.innerHTML = '';
+  patternSteps.forEach((name, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'pattern-chip';
+    chip.innerHTML = `${idx + 1}. ${name} <button onclick="removeFromPattern(${idx})">&times;</button>`;
+    list.appendChild(chip);
+  });
+}
+
+async function startPattern() {
+  if (patternSteps.length === 0) { window.showToast('Add at least one step to the pattern', 'error'); return; }
+  const interval_s = parseFloat(document.getElementById('intervalInput').value) || 30;
+  const loop = document.getElementById('loopInput').checked;
+  await api('/api/pattern', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: patternSteps, interval_s, loop})});
+  window.showToast('Pattern started', 'success');
+  await refreshStatus();
+}
+
+async function stopPattern() {
+  await api('/api/pattern/stop', {method: 'POST'});
+  window.showToast('Pattern stopped, impairments cleared');
+  await refreshStatus();
+}
+
+async function refreshStatus() {
+  const status = await api('/api/status');
+  currentProfile = status.pattern?.running ? status.pattern.current : status.current_profile;
+  highlightActive();
+
+  const badge = document.getElementById('sudoBadge');
+  badge.className = 'badge ' + (status.sudo_ok ? 'badge-success' : 'badge-danger');
+  badge.textContent = status.sudo_ok ? 'sudo ok' : 'sudo not configured';
+
+  document.getElementById('ifaceLabel').textContent = status.interface;
+  document.getElementById('egressStat').textContent = status.egress_active ? 'Active' : 'Clear';
+  document.getElementById('ingressStat').textContent = status.ingress_active ? 'Active' : 'Clear';
+  document.getElementById('patternStat').textContent = status.pattern?.running
+    ? `Step ${status.pattern.step + 1}/${status.pattern.sequence.length}` : 'Idle';
+  document.getElementById('statusJson').textContent = JSON.stringify(status, null, 2);
+}
+
+loadProfiles().then(refreshStatus);
+setInterval(refreshStatus, 3000);
+</script>
+
+<script>
+  // Theme toggle -- shared 5G-MAG reference tools pattern.
+  (function () {
+    var btn = document.getElementById('theme-toggle');
+    var STORAGE_KEY = 'netemu-control-theme';
+    function applyTheme(theme) {
+      if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      else document.documentElement.removeAttribute('data-theme');
+      btn.innerHTML = theme === 'dark' ? '&#9728;&nbsp;Light mode' : '&#9790;&nbsp;Dark mode';
+      btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+    }
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    btn.addEventListener('click', function () {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
+      applyTheme(next);
+    });
+  })();
+
+  // Toast helper -- shared 5G-MAG reference tools pattern.
+  window.showToast = function (message, kind) {
+    var el = document.getElementById('toast');
+    el.textContent = message;
+    el.className = kind || '';
+    el.hidden = false;
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(function () { el.hidden = true; }, 4000);
+  };
+</script>
+
+</body>
+</html>

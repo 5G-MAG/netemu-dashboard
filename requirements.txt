@@ -1,0 +1,7 @@
+# netemu, from 5G-MAG/6G-Testbed's main branch. run.sh checks main on every start and
+# reinstalls netemu when it has moved. To develop against a local checkout instead, see
+# "Dependency on 6G-Testbed" in README.md.
+netemu @ git+https://github.com/5G-MAG/6G-Testbed.git@main#subdirectory=netemu
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pyyaml>=6.0

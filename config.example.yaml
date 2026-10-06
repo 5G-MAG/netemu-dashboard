@@ -1,0 +1,22 @@
+# netemu-control configuration. Copy to config.yaml (gitignored) and edit.
+# Every key is optional; anything omitted uses the default shown here.
+# Any key can also be overridden per run with NETEMU_CONTROL_<KEY>, e.g.
+#   NETEMU_CONTROL_INTERFACE=eno1 NETEMU_CONTROL_PORT=9000 ./run.sh
+
+# Address/port the web UI and API listen on.
+host: 0.0.0.0
+port: 8090
+
+# Network interface to shape. "auto" = the interface holding the default route,
+# which on multi-homed hosts (WiFi + wired test LAN) is usually the wrong one:
+# check with `ip route get <test-device-ip>` and set it explicitly.
+interface: auto
+
+# Shape both directions (egress directly, ingress via an IFB device).
+bidirectional: true
+ifb_device: ifb0
+
+# Built-in profile set (read-only in the UI) and where UI-created custom
+# profiles are stored. Relative paths are relative to this directory.
+profiles_path: profiles.yaml
+custom_profiles_path: custom_profiles.yaml
