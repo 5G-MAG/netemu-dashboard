@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/banner.svg" width="100%" alt="Testbeds · 6G AI Traffic Characterization Testbed: Network Emulator Dashboard">
+  <img src=".github/banner.svg" width="100%" alt="Testbeds · 6G AI Traffic Characterization: Network Emulator Dashboard">
 </p>
 
 <p align="center">
@@ -8,8 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="Status: under development"
-    src="https://img.shields.io/badge/Status-Under%20Development-f39c12">
+  <img alt="Status" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fwww.5g-mag.com%2Fbadges%2Fstatus%2Fnetemu-dashboard.json">
   <a href="https://github.com/5G-MAG/netemu-dashboard/releases"><img alt="Version"
     src="https://img.shields.io/github/v/release/5G-MAG/netemu-dashboard?label=Version&sort=semver"></a>
   <a href="LICENSE"><img alt="License: 5G-MAG Public License v1.0"
@@ -28,7 +27,7 @@
 
 |  |  |
 |---|---|
-| **Part of** | [6G AI Traffic Characterization Testbed](https://www.5g-mag.com/testbeds/6g-testbed), alongside [6G-Testbed](https://github.com/5G-MAG/6G-Testbed) |
+| **Part of** | [6G AI Traffic Characterization](https://www.5g-mag.com/testbeds/6g-testbed/), alongside [6G-Testbed](https://github.com/5G-MAG/6G-Testbed) |
 | **Depends on** | `netemu` from [6G-Testbed](https://github.com/5G-MAG/6G-Testbed/tree/main/netemu), tracked on `main` |
 
 ## Introduction
